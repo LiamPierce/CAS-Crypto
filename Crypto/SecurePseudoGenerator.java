@@ -24,21 +24,42 @@ public class SecurePseudoGenerator implements generator {
     
     private PrimeGenerator insecurePrimes = new PrimeGenerator();
     private Generator generationMethod;
+
+    /**
+     * Generator algorithm choice.
+     */
     public enum Generator{
+
         BlumBlumShub,
         NaorReingold;
     }
     
+    /**
+     * Create a new generator object with the given generation algorithm.
+     * @param generationMethod algorithm to be used.
+     */
     public SecurePseudoGenerator(Generator generationMethod){
         this.generationMethod = generationMethod;
     }
     
+    /**
+     * Create a new generator with the NaorReingold algorithm as default.
+     */
     public SecurePseudoGenerator(){
         this.generationMethod = NaorReingold;
     }
     
-    public BigInteger insecurePrime(int bit) throws Exception{
-        BigInteger prime = insecurePrimes.generatePrime(insecurePrimes, bit);
+    /**
+     *
+     * Generate a prime using an insecure random generator for use in
+     * secure prime generation.
+     * 
+     * @param digits number of digits
+     * @return new insecure prime
+     * @throws Exception
+     */
+    public BigInteger insecurePrime(int digits) throws Exception{
+        BigInteger prime = insecurePrimes.generatePrime(insecurePrimes, digits);
         return prime;
     }
     
@@ -88,6 +109,8 @@ public class SecurePseudoGenerator implements generator {
             p = insecurePrime(n);
             q = insecurePrime(n);
             
+            BigInteger build = BigInteger.ONE;
+            
             BigInteger[] randoms = new BigInteger[2 * n];
             
             BigInteger N = p.multiply(q);
@@ -98,6 +121,31 @@ public class SecurePseudoGenerator implements generator {
             
             BigInteger sqr = insecurePrimes.generateBZx(N);
             BigInteger g  = Algorithms.fastExponentiate(sqr, BigInteger.valueOf(2), N);
+            BigInteger sx = BigInteger.ONE;
+            
+            
+            while (build.toString().length() < n){
+                BigInteger asum = BigInteger.ZERO;
+
+                for (int i = 0;i<n / 2;i++){
+                    BigInteger bitValue = sx.and(BigInteger.ONE); //Mask first bit.
+                    asum = asum.add(randoms[(int) Math.ceil(i * 2) + bitValue.intValue()]);
+                    sx = sx.shiftRight(1);
+                }
+
+                BigInteger ba = Algorithms.fastExponentiate(g,asum,N);
+                BigInteger r = insecurePrimes.generateNumber(n * 2);
+                
+                build = build.shiftLeft(1).add(ba.multiply(r).mod(BigInteger.valueOf(2)));
+                
+                if (build.toString().length() == n){
+                    break;
+                }
+                
+                sx = sx.add(BigInteger.ONE);
+            }
+            
+            return build;
             
         } catch (Exception ex) {
             Logger.getLogger(SecurePseudoGenerator.class.getName()).log(Level.SEVERE, null, ex);
@@ -106,6 +154,11 @@ public class SecurePseudoGenerator implements generator {
         return BigInteger.ZERO;
     }
     
+    /**
+     * Generate a random, cryptographically secure number.
+     * @param digits number of digits in output.
+     * @return new random number.
+     */
     @Override
     public BigInteger generateNumber(int digits){
         switch (this.generationMethod) {

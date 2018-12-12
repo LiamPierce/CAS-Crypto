@@ -15,10 +15,27 @@ import java.util.Arrays;
  * @author Liam Pierce
  */
 public class RSA {
+
+    /**
+    * Class representing a key's publishing.
+    */
     public class keyPost{
+
+        /**
+         * Post's group
+         */
         public BigInteger n;
+
+        /**
+         * Post's exponent
+         */
         public BigInteger e;
         
+        /**
+         * Create a new keypost.
+         * @param n
+         * @param e
+         */
         public keyPost(BigInteger n, BigInteger e){
             this.n = n;
             this.e = e;
@@ -33,7 +50,13 @@ public class RSA {
     private BigInteger phiN;
     private BigInteger e;
     private BigInteger d;
+    private BigInteger n;
     
+    /**
+     * Initialize RSA with no information. p, q, and e will be generated.
+     * @param sizes prime digit size.
+     * @throws Exception
+     */
     public RSA(int sizes) throws Exception{
         while (true){
             p = pgen.generatePrime(pRNG, sizes);
@@ -42,57 +65,87 @@ public class RSA {
                 break;
             }
         }
+        n = p.multiply(q);
         phiN = p.subtract(BigInteger.ONE).multiply(q.subtract(BigInteger.ONE));
         e = pgen.generateBZx(phiN);
         d = Algorithms.cyclicInverse(e, phiN).mod(phiN);
         System.out.println("Initialized RSA, p: " + p + " q : " + q + " e : " + e + "d " + d);
     }
     
+    /**
+     * Initialize RSA with pre-made group and exponent.
+     * @param n group
+     * @param e exponent
+     */
+    public RSA(BigInteger n,BigInteger e){
+        this.n = n;
+        this.e = e;
+        System.out.println("Initialized RSA, n: " + n + " e: " + e);
+    }
+    
+    /**
+     * Initialize RSA with pre-made p,q, and e.
+     * @param p prime p
+     * @param q prime q
+     * @param e exponent
+     * @throws Exception
+     */
     public RSA(BigInteger p, BigInteger q, BigInteger e) throws Exception{
         this.p = p;
         this.q = q;
         phiN = p.subtract(BigInteger.ONE).multiply(q.subtract(BigInteger.ONE));
         this.e = e;
+        n = p.multiply(q);
         d = Algorithms.cyclicInverse(e, phiN).mod(phiN);
-        System.out.println("Initialized RSA, p: " + p + " q : " + q + " e : " + e + "d " + d);
+        System.out.println("Initialized RSA, p: " + p + " q : " + q + " e : " + e + " d : " + d);
     }
     
+    /**
+     * Publish public data.
+     * @return
+     */
     public keyPost post(){
         System.out.println("Posting...");
-        System.out.println("n : " + p.multiply(q));
+        System.out.println("n : " + n);
         System.out.println("e : " + e);
-        return new keyPost(p.multiply(q),e);
+        return new keyPost(n,e);
     }
    
     
     //Decrypt a message that could be received by this RSA client. "Bob".
-    public BigInteger localAction(BigInteger text){
+
+    /**
+     * Decrypt data encrypted with public key.
+     * @param text Ciphertext to be decrypted. Do not use this to encrypt.
+     * @return decrypted text.
+     */
+    public BigInteger decrypt(BigInteger text){
        
-        return Algorithms.fastExponentiate(text, d, p.multiply(q));
+        return Algorithms.fastExponentiate(text, d, n);
     }
     
-    public BigInteger publicAction(BigInteger text){
-        return Algorithms.fastExponentiate(text, e, p.multiply(q));
+    /**
+     * Encrypt text with public key data.
+     * @param text value to encrypt
+     * @return encrypted cipher.
+     */
+    public BigInteger encrypt(BigInteger text){
+        //System.out.println("Encrypting " + text + ".");
+        return Algorithms.fastExponentiate(text, e, n);
     }
     
+    /**
+     * Initialize a new RSA object that can act as an RSA initializer. 
+     * This allows an eavesdropper to encrypt or decrypt on a channel.
+     * 
+     * @param n group
+     * @param e public exponent
+     * @return new RSA object.
+     * @throws Exception
+     */
     public static RSA maliciousCrypt(BigInteger n, BigInteger e) throws Exception{
         if (!new PrimeGenerator().probablyPrime(n) && !n.equals(BigInteger.ZERO)){
-            BigInteger x = BigInteger.valueOf(2);
-            BigInteger y = x.pow(2).add(BigInteger.ONE);
-            BigInteger g;
-            while (true){
-                g = Algorithms.euclidean(x.subtract(y).mod(n), n);
-                if (g.compareTo(BigInteger.ONE) > 0 && g.compareTo(n) <= 0){
-                    System.out.println(g);
-                    break;
-                }else if (g.equals(BigInteger.ONE)){
-                    x = x.pow(2).add(BigInteger.ONE).mod(n);
-                    y = y.pow(2).add(BigInteger.ONE).pow(2).add(BigInteger.ONE).mod(n);
-                }else if (g.equals(n)){
-                    x = BigInteger.valueOf(3);
-                    y = x.pow(2).add(BigInteger.ONE);
-                }
-            }
+            BigInteger g = Algorithms.pollardsRho(n);
             BigInteger p = n.divide(g);
             BigInteger q = g;
             RSA crack = new RSA(p,q,e);
